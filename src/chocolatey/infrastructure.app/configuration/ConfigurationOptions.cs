@@ -39,6 +39,8 @@ namespace chocolatey.infrastructure.app.configuration
             get { return _console.Value; }
         }
 
+        private static readonly OptionSet _optionSet = new OptionSet();
+
         /// <summary>
         ///   Parses arguments and updates the configuration
         /// </summary>
@@ -56,25 +58,28 @@ namespace chocolatey.infrastructure.app.configuration
                                                                     Action helpMessage)
         {
             IList<string> unparsedArguments = new List<string>();
-            var optionSet = new OptionSet 
-            {{
-                "?|help|h", "Prints out the help menu.", 
-                option => configuration.HelpRequested = option != null
-            }};
 
+            // add help only once
+            if (_optionSet.Count == 0)
+            {
+                _optionSet
+                    .Add("?|help|h",
+                         "Prints out the help menu.",
+                         option => configuration.HelpRequested = option != null);
+            }
 
             if (setOptions != null)
             {
-                setOptions(optionSet);
+                setOptions(_optionSet);
             }
 
             try
             {
-                unparsedArguments = optionSet.Parse(args);
+                unparsedArguments = _optionSet.Parse(args);
             }
             catch (OptionException)
             {
-                show_help(optionSet, helpMessage);
+                show_help(_optionSet, helpMessage);
             }
 
             // the command argument
@@ -98,7 +103,7 @@ namespace chocolatey.infrastructure.app.configuration
 
             if (configuration.HelpRequested)
             {
-                show_help(optionSet, helpMessage);
+                show_help(_optionSet, helpMessage);
             }
             else
             {
