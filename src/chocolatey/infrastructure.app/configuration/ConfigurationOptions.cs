@@ -34,12 +34,17 @@ namespace chocolatey.infrastructure.app.configuration
             _console = console;
         }
 
+        public static void reset_options()
+        {
+            _optionSet = new OptionSet();
+        }
+
         private static IConsole Console
         {
             get { return _console.Value; }
         }
 
-        private static readonly OptionSet _optionSet = new OptionSet();
+        private static OptionSet _optionSet = new OptionSet();
 
         /// <summary>
         ///   Parses arguments and updates the configuration
