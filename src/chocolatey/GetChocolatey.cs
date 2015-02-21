@@ -50,6 +50,7 @@ namespace chocolatey
         public GetChocolatey()
         {
             Log4NetAppenderConfiguration.configure();
+            Bootstrap.initialize();
             _configuration = new ChocolateyConfiguration();
             _container = SimpleInjectorContainer.Container;
             _fileSystem = _container.GetInstance<IFileSystem>();
