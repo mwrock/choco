@@ -19,8 +19,11 @@ namespace chocolatey.infrastructure.commands
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
+    using System.Management.Automation;
+    using System.Management.Automation.Runspaces;
     using adapters;
     using filesystem;
+    using Console = System.Console;
     using Environment = System.Environment;
 
     public sealed class PowershellExecutor
@@ -33,28 +36,55 @@ namespace chocolatey.infrastructure.commands
             };
 
         private static string _powershell = string.Empty;
+        private static object _boxstarter;
 
         public static int execute(
             string command,
             IFileSystem fileSystem,
             int waitForExitSeconds,
-            Action<object, DataReceivedEventArgs> stdOutAction,
-            Action<object, DataReceivedEventArgs> stdErrAction
+            Action<object, EventArgs> stdOutAction,
+            Action<object, EventArgs> stdErrAction
             )
         {
             if (string.IsNullOrWhiteSpace(_powershell)) _powershell = get_powershell_location(fileSystem);
             //-NoProfile -NoLogo -ExecutionPolicy unrestricted -Command "[System.Threading.Thread]::CurrentThread.CurrentCulture = ''; [System.Threading.Thread]::CurrentThread.CurrentUICulture = '';& '%DIR%chocolatey.ps1' %PS_ARGS%"
             string arguments = "-NoProfile -NoLogo -ExecutionPolicy Bypass -Command \"{0}\"".format_with(command);
 
-            return CommandExecutor.execute(
-                _powershell,
-                arguments,
-                waitForExitSeconds,
-                workingDirectory: fileSystem.get_directory_name(Assembly.GetExecutingAssembly().CodeBase.Replace("file:///", string.Empty)),
-                stdOutAction: stdOutAction,
-                stdErrAction: stdErrAction,
-                updateProcessPath: true
-                );
+            Runspace runspace;
+            
+            //if (_runspace != null)
+            //{
+                Console.Out.WriteLine("importing boxstarter modules");
+                var initialSessionState = InitialSessionState.CreateDefault();
+                initialSessionState.ImportPSModule(new[] { "c:\\dev\\boxstarter\\boxstarter.chocolatey\\boxstarter.chocolatey.psd1" });
+                runspace = RunspaceFactory.CreateRunspace(initialSessionState);
+                runspace.Open();
+                Console.Out.WriteLine("setting boxstarter variable");
+                runspace.SessionStateProxy.SetVariable("Boxstarter", _boxstarter);
+                Console.Out.WriteLine("DONE importing boxstarter modules and var");
+
+            //}
+            Environment.CurrentDirectory = fileSystem.get_directory_name(Assembly.GetExecutingAssembly().CodeBase.Replace("file:///", string.Empty));
+            var pipeline = runspace.CreatePipeline(command);
+            pipeline.Output.DataReady += new EventHandler(stdOutAction);
+            pipeline.Error.DataReady += new EventHandler(stdErrAction);
+            pipeline.Input.Close();
+            pipeline.InvokeAsync();
+            Console.Out.WriteLine("PS Installer called");
+
+            //return CommandExecutor.execute(
+            //    _powershell,
+            //    arguments,
+            //    waitForExitSeconds,
+            //    workingDirectory: fileSystem.get_directory_name(Assembly.GetExecutingAssembly().CodeBase.Replace("file:///", string.Empty)),
+            //    stdOutAction: stdOutAction,
+            //    stdErrAction: stdErrAction,
+            //    updateProcessPath: true
+            //    );
+
+            while(!pipeline.Output.EndOfPipeline) {}
+
+            return Environment.ExitCode;
         }
 
         public static string get_powershell_location(IFileSystem fileSystem)
@@ -68,6 +98,11 @@ namespace chocolatey.infrastructure.commands
             }
 
             throw new FileNotFoundException("Unable to find suitable location for PowerShell. Searched the following locations: '{0}'".format_with(string.Join("; ", _powershellLocations)));
+        }
+
+        public static void set_runspace(object boxstarter)
+        {
+            _boxstarter = boxstarter;
         }
     }
 }

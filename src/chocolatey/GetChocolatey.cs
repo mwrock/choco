@@ -17,12 +17,14 @@ namespace chocolatey
 {
     using System;
     using System.Collections.Generic;
+    using System.Management.Automation.Runspaces;
     using SimpleInjector;
     using infrastructure.adapters;
     using infrastructure.app;
     using infrastructure.app.builders;
     using infrastructure.app.configuration;
     using infrastructure.app.runners;
+    using infrastructure.commands;
     using infrastructure.configuration;
     using infrastructure.extractors;
     using infrastructure.filesystem;
@@ -97,8 +99,10 @@ namespace chocolatey
         /// <summary>
         ///   Call this method to run chocolatey after you have set the options.
         /// </summary>
-        public void Run()
+        public void Run(object runspace = null)
         {
+            if (runspace != null)
+                PowershellExecutor.set_runspace(runspace);
             //refactor - thank goodness this is temporary, cuz manifest resource streams are dumb
             IList<string> folders = new List<string>
                 {

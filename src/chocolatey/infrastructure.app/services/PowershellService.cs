@@ -18,6 +18,8 @@ namespace chocolatey.infrastructure.app.services
     using System;
     using System.IO;
     using System.Linq;
+    using System.Management.Automation;
+    using System.Management.Automation.Runspaces;
     using commandline;
     using configuration;
     using domain;
@@ -208,30 +210,44 @@ Do you want to run the script?
                         configuration.CommandExecutionTimeoutSeconds,
                         (s, e) =>
                             {
-                                if (string.IsNullOrWhiteSpace(e.Data)) return;
-                                //inspect for different streams
-                                if (e.Data.StartsWith("DEBUG:"))
+                                var output = s as PipelineReader<PSObject>;
+
+                                if (output == null) return;
+
+                                while (output.Count > 0)
                                 {
-                                    this.Log().Debug(() => " " + e.Data);
-                                }
-                                else if (e.Data.StartsWith("WARNING:"))
-                                {
-                                    this.Log().Warn(() => " " + e.Data);
-                                }
-                                else if (e.Data.StartsWith("VERBOSE:"))
-                                {
-                                    this.Log().Info(ChocolateyLoggers.Verbose, () => " " + e.Data);
-                                }
-                                else
-                                {
-                                    this.Log().Info(() => " " + e.Data);
+                                    var data = output.Read().ToString();
+                                    if (string.IsNullOrWhiteSpace(data)) continue;
+                                    //inspect for different streams
+                                    if (data.StartsWith("DEBUG:"))
+                                    {
+                                        this.Log().Debug(() => " " + data);
+                                    }
+                                    else if (data.StartsWith("WARNING:"))
+                                    {
+                                        this.Log().Warn(() => " " + data);
+                                    }
+                                    else if (data.StartsWith("VERBOSE:"))
+                                    {
+                                        this.Log().Info(ChocolateyLoggers.Verbose, () => " " + data);
+                                    }
+                                    else
+                                    {
+                                        this.Log().Info(() => " " + data);
+                                    }
                                 }
                             },
                         (s, e) =>
                             {
-                                if (string.IsNullOrWhiteSpace(e.Data)) return;
-                                failure = true;
-                                this.Log().Error(() => " " + e.Data);
+                                var error = s as PipelineReader<object>;
+                                if (error == null) return;
+                                while (error.Count > 0)
+                                {
+                                    var data = error.Read().ToString();
+                                    if (string.IsNullOrWhiteSpace(data)) return;
+                                    failure = true;
+                                    this.Log().Error(() => " " + data);
+                                }
                             });
 
                     if (failure)
