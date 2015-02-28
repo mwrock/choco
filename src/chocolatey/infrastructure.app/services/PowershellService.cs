@@ -221,37 +221,7 @@ Do you want to run the script?
                 if (shouldRun)
                 {
                     installerRun = true;
-                    var exitCode = PowershellExecutor.execute(
-                        wrap_script_with_module(chocoPowerShellScript),
-                        _fileSystem,
-                        configuration.CommandExecutionTimeoutSeconds,
-                        (s, e) =>
-                            {
-                                if (string.IsNullOrWhiteSpace(e.Data)) return;
-                                //inspect for different streams
-                                if (e.Data.StartsWith("DEBUG:"))
-                                {
-                                    this.Log().Debug(() => " " + e.Data);
-                                }
-                                else if (e.Data.StartsWith("WARNING:"))
-                                {
-                                    this.Log().Warn(() => " " + e.Data);
-                                }
-                                else if (e.Data.StartsWith("VERBOSE:"))
-                                {
-                                    this.Log().Info(ChocolateyLoggers.Verbose, () => " " + e.Data);
-                                }
-                                else
-                                {
-                                    this.Log().Info(() => " " + e.Data);
-                                }
-                            },
-                        (s, e) =>
-                            {
-                                if (string.IsNullOrWhiteSpace(e.Data)) return;
-                                failure = true;
-                                this.Log().Error(() => " " + e.Data);
-                            });
+                    var exitCode = execute_powershell(configuration, chocoPowerShellScript, out failure);
 
                     if (failure)
                     {
@@ -263,6 +233,44 @@ Do you want to run the script?
             }
 
             return installerRun;
+        }
+
+        protected virtual int execute_powershell(ChocolateyConfiguration configuration, string chocoPowerShellScript, out bool failure)
+        {
+            var executeFailure = false;
+            var exitCode = PowershellExecutor.execute(
+                wrap_script_with_module(chocoPowerShellScript),
+                _fileSystem,
+                configuration.CommandExecutionTimeoutSeconds,
+                (s, e) =>
+                {
+                    if (string.IsNullOrWhiteSpace(e.Data)) return;
+                    //inspect for different streams
+                    if (e.Data.StartsWith("DEBUG:"))
+                    {
+                        this.Log().Debug(() => " " + e.Data);
+                    }
+                    else if (e.Data.StartsWith("WARNING:"))
+                    {
+                        this.Log().Warn(() => " " + e.Data);
+                    }
+                    else if (e.Data.StartsWith("VERBOSE:"))
+                    {
+                        this.Log().Info(ChocolateyLoggers.Verbose, () => " " + e.Data);
+                    }
+                    else
+                    {
+                        this.Log().Info(() => " " + e.Data);
+                    }
+                },
+                (s, e) =>
+                {
+                    if (string.IsNullOrWhiteSpace(e.Data)) return;
+                    executeFailure = true;
+                    this.Log().Error(() => " " + e.Data);
+                });
+            failure = executeFailure;
+            return exitCode;
         }
     }
 }
